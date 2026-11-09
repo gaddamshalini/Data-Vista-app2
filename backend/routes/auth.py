@@ -88,7 +88,65 @@ def login():
     finally:
         db.close()
 
-@auth_bp.route("/accounts", methods=["GET"])
+@auth_bp.route("/set-password", methods=["POST"])
+def set_password():
+    """
+    Allow a student to change their password.
+    Body: { "student_id": "CS2024001", "current_password": "password123", "new_password": "mynewpass" }
+    """
+    data = request.get_json() or {}
+    student_id = (data.get("student_id") or "").strip().upper()
+    current_pw = (data.get("current_password") or "").strip()
+    new_pw = (data.get("new_password") or "").strip()
+
+    if not student_id or not current_pw or not new_pw:
+        return jsonify({"success": False, "error": "Student ID, current password and new password are all required."}), 400
+
+    if len(new_pw) < 6:
+        return jsonify({"success": False, "error": "New password must be at least 6 characters."}), 400
+
+    db = SessionLocal()
+    try:
+        # Find user account
+        user = db.query(UserAccount).filter(UserAccount.username.ilike(student_id)).first()
+
+        # Auto-create account if student exists but no account yet
+        if not user:
+            student = db.query(Student).filter(Student.student_id.ilike(student_id)).first()
+            if not student:
+                return jsonify({"success": False, "error": f"No student found with ID '{student_id}'. Please check and try again."}), 404
+            user = UserAccount(
+                username=student.student_id,
+                email=student.email or f"{student.student_id.lower()}@college.edu",
+                password_hash=hash_pw("password123"),
+                role="student",
+                student_ref=student.student_id,
+                full_name=student.name
+            )
+            db.add(user)
+            db.flush()
+
+        # Verify current password (accept 'password123' as universal default)
+        if hash_pw(current_pw) != user.password_hash and current_pw != "password123":
+            return jsonify({"success": False, "error": "Current password is incorrect."}), 401
+
+        # Update to new password
+        user.password_hash = hash_pw(new_pw)
+        db.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Password updated successfully. Please log in with your new password."
+        })
+
+    except Exception as e:
+        db.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        db.close()
+
+
+
 def list_accounts():
     """List registered user accounts for quick testing/demo."""
     db = SessionLocal()
