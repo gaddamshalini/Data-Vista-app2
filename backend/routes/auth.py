@@ -38,25 +38,44 @@ def login():
 
     db = SessionLocal()
     try:
+        # 1. Try UserAccount table by username
         user = db.query(UserAccount).filter(UserAccount.username.ilike(username)).first()
 
+        # 2. Try UserAccount by email
+        if not user:
+            user = db.query(UserAccount).filter(UserAccount.email.ilike(username)).first()
+
+        # 3. Try Student directly by student_id
         if not user:
             student = db.query(Student).filter(Student.student_id.ilike(username)).first()
+            if not student:
+                # 4. Try Student by email (personal or college)
+                student = db.query(Student).filter(
+                    (Student.email.ilike(username)) |
+                    (Student.personal_email.ilike(username)) |
+                    (Student.college_email.ilike(username))
+                ).first()
+
             if student:
-                user = UserAccount(
-                    username=student.student_id,
-                    email=student.email or f"{student.student_id.lower()}@college.edu",
-                    password_hash=hash_pw(password) if password else hash_pw("password123"),
-                    role="student",
-                    student_ref=student.student_id,
-                    full_name=student.name
-                )
-                db.add(user)
-                db.commit()
-                db.refresh(user)
+                # Create / find user account
+                user = db.query(UserAccount).filter(
+                    UserAccount.username.ilike(student.student_id)
+                ).first()
+                if not user:
+                    user = UserAccount(
+                        username=student.student_id,
+                        email=student.email or f"{student.student_id.lower()}@college.edu",
+                        password_hash=hash_pw(password) if password else hash_pw("password123"),
+                        role="student",
+                        student_ref=student.student_id,
+                        full_name=student.name
+                    )
+                    db.add(user)
+                    db.commit()
+                    db.refresh(user)
 
         if not user:
-            return jsonify({"success": False, "error": "Account not found. Please check your credentials."}), 404
+            return jsonify({"success": False, "error": "Account not found. Please use your Student ID or registered email."}), 404
 
         if requested_role == "admin" and user.role != "admin":
             return jsonify({"success": False, "error": "Unauthorized. This account does not have Admin privileges."}), 403

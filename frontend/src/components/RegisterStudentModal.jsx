@@ -368,18 +368,23 @@ export default function RegisterStudentModal({ isOpen, onClose }) {
         year: parseInt(formData.year, 10)
       });
 
-      // Create user account with chosen password
-      const studentId = formData.student_id.trim().toUpperCase();
-      await request("/auth/register-with-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          student_id: studentId,
-          password: password,
-          full_name: formData.name.trim(),
-          email: formData.college_email.trim()
-        })
-      });
+      // Create user account with chosen password (non-blocking — registration succeeds even if this fails)
+      try {
+        const studentId = formData.student_id.trim().toUpperCase();
+        await request("/auth/register-with-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            student_id: studentId,
+            password: password,
+            full_name: formData.name.trim(),
+            email: formData.college_email.trim()
+          })
+        });
+      } catch (pwErr) {
+        // Password registration failed but student profile was saved — not fatal
+        console.warn("Password registration note:", pwErr.message);
+      }
 
       onClose();
     } catch (err) {

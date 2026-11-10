@@ -170,11 +170,14 @@ export function StudentProvider({ children }) {
     const q = (query || "").trim();
     if (!q) return null;
 
-    // 1. Check local loaded students
+    // 1. Check local loaded students — by ID, name, or email
     const localMatch = allStudents.find(
       (s) =>
         s.student_id.toLowerCase() === q.toLowerCase() ||
-        s.name.toLowerCase() === q.toLowerCase()
+        s.name.toLowerCase() === q.toLowerCase() ||
+        (s.email && s.email.toLowerCase() === q.toLowerCase()) ||
+        (s.personal_email && s.personal_email.toLowerCase() === q.toLowerCase()) ||
+        (s.college_email && s.college_email.toLowerCase() === q.toLowerCase())
     ) || allStudents.find(
       (s) =>
         s.student_id.toLowerCase().includes(q.toLowerCase()) ||
@@ -331,7 +334,7 @@ export function StudentProvider({ children }) {
         console.warn("Direct auth check warning, continuing with profile match:", authErr);
       }
 
-      // Attempt to switch / find student
+      // Attempt to switch / find student by ID, name, or email
       const student = await switchStudentByIdOrName(q);
       if (student) {
         localStorage.removeItem("datavista_logged_out");
