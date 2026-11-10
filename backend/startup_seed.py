@@ -9,6 +9,15 @@ print("\n========================================")
 print("  DATA VISTA — Startup Seed")
 print("========================================\n")
 
+# 0. Run database migrations first
+try:
+    import migrate_v6
+    migrate_v6.run()
+    print("[OK] Migration v6 complete.\n")
+except Exception:
+    print("[!] migrate_v6 warning (may already be applied):")
+    traceback.print_exc()
+
 # 1. Main data (skills, careers, students, placement records, jobs, internships)
 try:
     from seed_data import seed

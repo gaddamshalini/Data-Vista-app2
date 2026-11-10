@@ -170,6 +170,7 @@ def register_student():
             year=int(data.get("year", 3)),
             cgpa=float(data.get("cgpa", 7.5)),
             preferred_career=data.get("preferred_career", "Data Analyst"),
+            preferred_career_custom=data.get("preferred_career_custom", ""),
             preferred_location=data.get("preferred_location", ""),
             num_internships=int(data.get("num_internships", 0) or 0),
             experience_status=exp_status,
@@ -283,6 +284,8 @@ def update_student(student_id):
             student.cgpa = float(data["cgpa"])
         if "preferred_career" in data:
             student.preferred_career = data["preferred_career"].strip()
+        if "preferred_career_custom" in data:
+            student.preferred_career_custom = (data["preferred_career_custom"] or "").strip()
         if "preferred_location" in data:
             student.preferred_location = data["preferred_location"].strip()
         if "num_internships" in data:

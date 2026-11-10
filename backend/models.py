@@ -18,6 +18,7 @@ class Student(Base):
     year = Column(Integer, default=3)  # 1 to 4
     cgpa = Column(Float, nullable=False, default=7.5)
     preferred_career = Column(String(100), default="Data Analyst")
+    preferred_career_custom = Column(String(200), nullable=True)  # set when "Other" is chosen
     preferred_location = Column(String(100), default="Bangalore")
     num_internships = Column(Integer, default=0)
     experience_status = Column(String(20), default="Fresher")  # Fresher, Experienced
@@ -75,7 +76,9 @@ class Student(Base):
             "branch": self.branch,
             "year": self.year,
             "cgpa": self.cgpa,
-            "preferred_career": self.preferred_career,
+            "preferred_career": self.preferred_career_custom if self.preferred_career == "Other" and self.preferred_career_custom else self.preferred_career,
+            "preferred_career_raw": self.preferred_career,
+            "preferred_career_custom": self.preferred_career_custom or "",
             "preferred_location": self.preferred_location or "",
             "num_internships": self.num_internships if self.num_internships is not None else 0,
             "experience_status": self.experience_status or "Fresher",
@@ -843,3 +846,25 @@ class InterviewPracticeRecord(Base):
         }
 
 
+
+class AccountActivity(Base):
+    """Tracks student account creation, login, logout and password changes."""
+    __tablename__ = "account_activities"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    student_id = Column(String(50), nullable=False, index=True)
+    # activity_type: "account_created" | "login" | "logout" | "password_changed" | "profile_updated"
+    activity_type = Column(String(50), nullable=False, index=True)
+    description = Column(String(255), nullable=True)
+    ip_address = Column(String(45), nullable=True)   # supports IPv6
+    user_agent = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "student_id": self.student_id,
+            "activity_type": self.activity_type,
+            "description": self.description,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }

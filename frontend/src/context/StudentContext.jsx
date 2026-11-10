@@ -352,6 +352,14 @@ export function StudentProvider({ children }) {
 
   // Authentication Logout
   const logout = () => {
+    // Log logout activity before clearing state
+    if (activeStudent?.student_id) {
+      fetch(`${window.location.origin.includes('localhost') ? 'http://127.0.0.1:5000' : (import.meta.env.VITE_API_BASE_URL || '')}/api/auth/logout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ student_id: activeStudent.student_id })
+      }).catch(() => {});
+    }
     localStorage.setItem("datavista_logged_out", "true");
     localStorage.removeItem("datavista_auth_token");
     localStorage.removeItem("datavista_user_role");

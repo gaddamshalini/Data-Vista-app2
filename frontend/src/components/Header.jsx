@@ -84,6 +84,7 @@ export default function Header({
             onClick={onToggleMobileSidebar}
             className="mobile-menu-btn"
             title="Toggle Navigation Menu"
+            aria-label="Open navigation menu"
             style={{
               background: "none",
               border: "none",
@@ -91,10 +92,11 @@ export default function Header({
               padding: "6px",
               color: "var(--primary-navy)",
               borderRadius: "6px",
-              display: "none"
+              display: "none",
+              flexShrink: 0
             }}
           >
-            <Menu size={22} />
+            <Menu size={24} />
           </button>
 
           <div>
@@ -145,11 +147,11 @@ export default function Header({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="form-input"
-                style={{ width: "220px", paddingLeft: "32px", height: "36px", fontSize: "0.82rem" }}
+                style={{ width: "200px", paddingLeft: "32px", height: "36px", fontSize: "0.82rem" }}
               />
               <Search size={15} style={{ position: "absolute", left: "10px", top: "11px", color: "var(--text-dim)" }} />
             </div>
-            <button type="submit" className="btn btn-secondary btn-sm" style={{ height: "36px" }}>
+            <button type="submit" className="btn btn-secondary btn-sm" style={{ height: "36px", whiteSpace: "nowrap" }}>
               Find
             </button>
           </form>
@@ -163,56 +165,22 @@ export default function Header({
             type="button"
             onClick={() => setIsNotifOpen(true)}
             className="btn btn-secondary btn-sm"
-            style={{
-              position: "relative",
-              height: "36px",
-              width: "36px",
-              padding: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center"
-            }}
+            style={{ position: "relative", height: "36px", width: "36px", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
             title="Notifications"
           >
             <Bell size={16} />
             {unreadCount > 0 && (
-              <span
-                style={{
-                  position: "absolute",
-                  top: "-4px",
-                  right: "-4px",
-                  backgroundColor: "#ef4444",
-                  color: "#ffffff",
-                  fontSize: "0.68rem",
-                  fontWeight: 800,
-                  width: "18px",
-                  height: "18px",
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  boxShadow: "0 2px 4px rgba(239, 68, 68, 0.4)"
-                }}
-              >
+              <span style={{ position: "absolute", top: "-4px", right: "-4px", backgroundColor: "#ef4444", color: "#ffffff", fontSize: "0.68rem", fontWeight: 800, width: "18px", height: "18px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
           </button>
 
-          <button
-            onClick={refreshActiveStudent}
-            className="btn btn-secondary btn-sm"
-            title="Refresh Profile"
-            style={{ height: "36px" }}
-          >
+          <button onClick={refreshActiveStudent} className="btn btn-secondary btn-sm" title="Refresh Profile" style={{ height: "36px", flexShrink: 0 }}>
             <RefreshCw size={14} className={loading ? "spin" : ""} />
           </button>
 
-          <button
-            onClick={onOpenRegister}
-            className="btn btn-primary btn-sm"
-            style={{ height: "36px" }}
-          >
+          <button onClick={onOpenRegister} className="btn btn-primary btn-sm" style={{ height: "36px", whiteSpace: "nowrap", flexShrink: 0 }}>
             <UserPlus size={14} />
             <span>New Student</span>
           </button>

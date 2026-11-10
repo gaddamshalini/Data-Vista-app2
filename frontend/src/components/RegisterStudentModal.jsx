@@ -11,7 +11,11 @@ import {
   RefreshCw,
   GraduationCap,
   Award,
-  Briefcase
+  Briefcase,
+  Lock,
+  Eye,
+  EyeOff,
+  CheckCircle2
 } from "lucide-react";
 import {
   useStudent,
@@ -19,6 +23,7 @@ import {
   DEFAULT_CAREERS,
   DEFAULT_SKILLS
 } from "../context/StudentContext";
+import { request } from "../services/api";
 
 export default function RegisterStudentModal({ isOpen, onClose }) {
   const { registerStudent, catalog, isBackendConnected, retryConnection } = useStudent();
@@ -55,6 +60,16 @@ export default function RegisterStudentModal({ isOpen, onClose }) {
   const [customSkill, setCustomSkill] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Password fields
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  // Other career
+  const [selectedCareerOption, setSelectedCareerOption] = useState("Data Analyst");
+  const [customCareerInput, setCustomCareerInput] = useState("");
 
   // Certificate input states
   const [certNameInput, setCertNameInput] = useState("");
@@ -275,33 +290,55 @@ export default function RegisterStudentModal({ isOpen, onClose }) {
     return clean.startsWith("http://") || clean.startsWith("https://") || clean.startsWith("github.com/");
   };
 
+  const validatePassword = (pw) => {
+    if (pw.length < 8) return "Password must be at least 8 characters.";
+    if (!/[A-Z]/.test(pw)) return "Password must contain at least one uppercase letter.";
+    if (!/[a-z]/.test(pw)) return "Password must contain at least one lowercase letter.";
+    if (!/[0-9]/.test(pw)) return "Password must contain at least one number.";
+    if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(pw)) return "Password must contain at least one special character (!@#$%^&*...).";
+    return null;
+  };
+
+  const getPasswordStrength = (pw) => {
+    if (!pw) return null;
+    let score = 0;
+    if (pw.length >= 8) score++;
+    if (/[A-Z]/.test(pw)) score++;
+    if (/[a-z]/.test(pw)) score++;
+    if (/[0-9]/.test(pw)) score++;
+    if (/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(pw)) score++;
+    if (score <= 2) return { label: "Weak", color: "#ef4444" };
+    if (score <= 3) return { label: "Fair", color: "#f59e0b" };
+    if (score <= 4) return { label: "Good", color: "#3b82f6" };
+    return { label: "Strong", color: "#10b981" };
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg("");
 
-    if (!formData.student_id.trim()) {
-      setErrorMsg("Student ID is mandatory and must be unique.");
-      return;
-    }
-    if (!formData.name.trim()) {
-      setErrorMsg("Student Name is mandatory.");
-      return;
-    }
+    if (!formData.student_id.trim()) { setErrorMsg("Student ID is mandatory and must be unique."); return; }
+    if (!formData.name.trim()) { setErrorMsg("Student Name is mandatory."); return; }
     if (!formData.personal_email.trim() || !validateEmailFormat(formData.personal_email.trim())) {
-      setErrorMsg("Please enter a valid Personal Email address (e.g. yourname@gmail.com).");
-      return;
+      setErrorMsg("Please enter a valid Personal Email address."); return;
     }
     if (!formData.college_email.trim() || !validateEmailFormat(formData.college_email.trim())) {
-      setErrorMsg("Please enter a valid College Email address (e.g. yourname@college.edu).");
-      return;
+      setErrorMsg("Please enter a valid College Email address."); return;
     }
+
+    // Password validation
+    const pwError = validatePassword(password);
+    if (pwError) { setErrorMsg(pwError); return; }
+    if (password !== confirmPassword) { setErrorMsg("Passwords do not match."); return; }
+
     if (selectedBranchOption === "Other" && !customBranchInput.trim()) {
-      setErrorMsg("Please enter your custom Department / Course name.");
-      return;
+      setErrorMsg("Please enter your custom Department / Course name."); return;
+    }
+    if (selectedCareerOption === "Other" && !customCareerInput.trim()) {
+      setErrorMsg("Please enter your custom Career Goal."); return;
     }
     if (formData.github_profile && !validateGithub(formData.github_profile)) {
-      setErrorMsg("Please enter a valid GitHub profile URL (e.g. https://github.com/your-username).");
-      return;
+      setErrorMsg("Please enter a valid GitHub profile URL."); return;
     }
 
     try {
@@ -311,10 +348,15 @@ export default function RegisterStudentModal({ isOpen, onClose }) {
         normalizedGithub = `https://${normalizedGithub}`;
       }
 
+      const finalCareer = selectedCareerOption === "Other" ? "Other" : selectedCareerOption;
+      const finalCareerCustom = selectedCareerOption === "Other" ? customCareerInput.trim() : "";
+
       await registerStudent({
         ...formData,
         student_id: formData.student_id.trim().toUpperCase(),
         branch: selectedBranchOption === "Other" ? customBranchInput.trim() : selectedBranchOption,
+        preferred_career: finalCareer,
+        preferred_career_custom: finalCareerCustom,
         cgpa: parseFloat(formData.cgpa),
         personal_email: formData.personal_email.trim(),
         college_email: formData.college_email.trim(),
@@ -325,12 +367,23 @@ export default function RegisterStudentModal({ isOpen, onClose }) {
         github_profile: normalizedGithub,
         year: parseInt(formData.year, 10)
       });
+
+      // Create user account with chosen password
+      const studentId = formData.student_id.trim().toUpperCase();
+      await request("/auth/register-with-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          student_id: studentId,
+          password: password,
+          full_name: formData.name.trim(),
+          email: formData.college_email.trim()
+        })
+      });
+
       onClose();
     } catch (err) {
-      setErrorMsg(
-        err.message ||
-        "Failed to register student. Ensure the Python backend is running on port 5000 ('python app.py')."
-      );
+      setErrorMsg(err.message || "Failed to register student. Ensure the backend is running.");
     } finally {
       setIsSubmitting(false);
     }
@@ -623,14 +676,98 @@ export default function RegisterStudentModal({ isOpen, onClose }) {
           <div className="form-group" style={{ marginBottom: "16px" }}>
             <label className="form-label">Preferred Career Goal *</label>
             <select
-              value={formData.preferred_career}
-              onChange={(e) => setFormData({ ...formData, preferred_career: e.target.value })}
+              value={selectedCareerOption}
+              onChange={(e) => {
+                setSelectedCareerOption(e.target.value);
+                setFormData((prev) => ({ ...prev, preferred_career: e.target.value }));
+              }}
               className="form-select"
             >
               {careerList.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
+              <option value="Other">Other (Custom Career Goal)</option>
             </select>
+            {selectedCareerOption === "Other" && (
+              <div style={{ marginTop: "8px" }}>
+                <input
+                  type="text"
+                  placeholder="Enter your custom career goal *"
+                  value={customCareerInput}
+                  onChange={(e) => setCustomCareerInput(e.target.value)}
+                  className="form-input"
+                  required
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Password Fields */}
+          <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: "14px", marginBottom: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 700, color: "var(--primary-navy)", marginBottom: "12px", fontSize: "0.95rem" }}>
+              <Lock size={16} color="var(--brand-blue)" /> Create Account Password
+            </div>
+            <div className="grid-2" style={{ marginBottom: "8px" }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Password *</label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Min 8 chars, A-Z, a-z, 0-9, !@#"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={8}
+                    className="form-input"
+                    style={{ paddingRight: "38px" }}
+                  />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)}
+                    style={{ position: "absolute", right: "10px", top: "9px", background: "none", border: "none", cursor: "pointer", color: "#94a3b8" }}>
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {password && (() => {
+                  const s = getPasswordStrength(password);
+                  return s ? (
+                    <div style={{ marginTop: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <div style={{ flex: 1, height: "4px", backgroundColor: "#e2e8f0", borderRadius: "2px" }}>
+                        <div style={{ height: "4px", borderRadius: "2px", width: `${["Weak","Fair","Good","Strong"].indexOf(s.label) * 25 + 25}%`, backgroundColor: s.color, transition: "width 0.3s" }} />
+                      </div>
+                      <span style={{ fontSize: "0.72rem", fontWeight: 700, color: s.color }}>{s.label}</span>
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Confirm Password *</label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    type={showConfirm ? "text" : "password"}
+                    placeholder="Re-enter password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    className="form-input"
+                    style={{ paddingRight: "38px", borderColor: confirmPassword && password !== confirmPassword ? "#ef4444" : "" }}
+                  />
+                  <button type="button" onClick={() => setShowConfirm(!showConfirm)}
+                    style={{ position: "absolute", right: "10px", top: "9px", background: "none", border: "none", cursor: "pointer", color: "#94a3b8" }}>
+                    {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {confirmPassword && password !== confirmPassword && (
+                  <p style={{ fontSize: "0.73rem", color: "#ef4444", marginTop: "4px" }}>Passwords do not match.</p>
+                )}
+                {confirmPassword && password === confirmPassword && password.length >= 8 && (
+                  <p style={{ fontSize: "0.73rem", color: "#10b981", marginTop: "4px", display: "flex", alignItems: "center", gap: "4px" }}>
+                    <CheckCircle2 size={12} /> Passwords match
+                  </p>
+                )}
+              </div>
+            </div>
+            <div style={{ fontSize: "0.73rem", color: "#64748b", backgroundColor: "#f8fafc", padding: "8px 12px", borderRadius: "6px", border: "1px solid #e2e8f0" }}>
+              Password must have: at least 8 characters · one uppercase letter · one lowercase letter · one number · one special character (!@#$%^&*...)
+            </div>
           </div>
 
           {/* EDUCATIONAL DETAILS SECTION */}
