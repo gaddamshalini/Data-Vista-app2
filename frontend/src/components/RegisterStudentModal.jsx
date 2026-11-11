@@ -368,10 +368,10 @@ export default function RegisterStudentModal({ isOpen, onClose }) {
         year: parseInt(formData.year, 10)
       });
 
-      // Create user account with chosen password (non-blocking — registration succeeds even if this fails)
+      // Create user account with chosen password
       try {
         const studentId = formData.student_id.trim().toUpperCase();
-        await request("/auth/register-with-password", {
+        const pwRes = await request("/auth/register-with-password", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -381,9 +381,16 @@ export default function RegisterStudentModal({ isOpen, onClose }) {
             email: formData.college_email.trim()
           })
         });
+        if (!pwRes.success) {
+          // Surface email conflict or other account creation errors
+          setErrorMsg(pwRes.error || "Account creation failed. Please try again.");
+          setIsSubmitting(false);
+          return;
+        }
       } catch (pwErr) {
-        // Password registration failed but student profile was saved — not fatal
-        console.warn("Password registration note:", pwErr.message);
+        setErrorMsg(pwErr.message || "Account creation failed. Please try again.");
+        setIsSubmitting(false);
+        return;
       }
 
       onClose();

@@ -125,6 +125,20 @@ export const loginUser = (payload) =>
     body: JSON.stringify(payload)
   });
 
+export const restoreSession = (payload) =>
+  request("/auth/me", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+export const checkEmailExists = (email) =>
+  request("/auth/check-email", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email })
+  });
+
 // Resume Builder Persistence APIs
 export const getSavedResumes = (studentId) =>
   request(`/resumes/${encodeURIComponent(studentId)}`);

@@ -8,7 +8,8 @@ import {
   addCustomSkill as apiAddCustomSkill,
   searchStudents as apiSearchStudents,
   checkHealth,
-  loginUser
+  loginUser,
+  restoreSession
 } from "../services/api";
 
 export const DEFAULT_BRANCHES = [
@@ -57,12 +58,9 @@ const StudentContext = createContext();
 export function StudentProvider({ children }) {
   const [activeStudent, setActiveStudent] = useState(null);
   const [allStudents, setAllStudents] = useState([]);
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return localStorage.getItem("datavista_logged_out") !== "true";
-  });
-  const [userRole, setUserRole] = useState(() => {
-    return localStorage.getItem("datavista_user_role") || "student";
-  });
+  // Always start unauthenticated — session is restored via /api/auth/me on mount
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState("student");
   const [currentUser, setCurrentUser] = useState(null);
   const [catalog, setCatalog] = useState({
     skills: DEFAULT_SKILLS.map((s, idx) => ({ id: idx + 1, name: s, category: "Technical", demand_index: 80 })),
@@ -74,61 +72,79 @@ export function StudentProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Initial load
+  // Load catalog options (runs always, independent of auth)
+  const loadCatalog = async () => {
+    try {
+      const health = await checkHealth();
+      if (health.status === "healthy") setIsBackendConnected(true);
+    } catch {
+      setIsBackendConnected(false);
+    }
+    try {
+      const catalogRes = await getCatalogOptions();
+      if (catalogRes?.success) {
+        setCatalog({
+          skills: catalogRes.skills?.length > 0
+            ? catalogRes.skills
+            : DEFAULT_SKILLS.map((s, idx) => ({ id: idx + 1, name: s, category: "Technical", demand_index: 80 })),
+          certifications: catalogRes.certifications?.length > 0
+            ? catalogRes.certifications
+            : DEFAULT_CERTS.map((c, idx) => ({ id: idx + 1, name: c, issuing_org: "Certified" })),
+          branches: catalogRes.branches?.length > 0 ? catalogRes.branches : DEFAULT_BRANCHES,
+          careers: catalogRes.careers?.length > 0 ? catalogRes.careers : DEFAULT_CAREERS
+        });
+        setIsBackendConnected(true);
+      }
+    } catch {
+      // keep defaults
+    }
+  };
+
+  // Initial load: restore session if stored credentials exist, then load catalog
   const init = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Verify health check first
-      try {
-        const health = await checkHealth();
-        if (health.status === "healthy") {
-          setIsBackendConnected(true);
+      await loadCatalog();
+
+      // Attempt to restore a previous session
+      const savedStudentId = localStorage.getItem("datavista_active_student_id");
+      const savedRole = localStorage.getItem("datavista_user_role") || "student";
+
+      if (savedStudentId) {
+        try {
+          const res = await restoreSession({ student_id: savedStudentId, role: savedRole });
+          if (res.success) {
+            setCurrentUser(res.user);
+            setUserRole(res.user.role);
+            if (res.student) {
+              setActiveStudent(res.student);
+            }
+            setIsAuthenticated(true);
+            setIsBackendConnected(true);
+            // Also load all students for admin or switcher features
+            if (res.user.role === "admin") {
+              const studentsRes = await getStudents().catch(() => ({ success: false, data: [] }));
+              if (studentsRes?.success) setAllStudents(studentsRes.data);
+            }
+            return; // session restored, done
+          }
+        } catch {
+          // Session restore failed — clear stale data and show login
+          localStorage.removeItem("datavista_active_student_id");
+          localStorage.removeItem("datavista_user_role");
+          localStorage.removeItem("datavista_auth_token");
         }
-      } catch (e) {
-        setIsBackendConnected(false);
-        console.warn("Backend health check failed. Backend might not be running on port 5000.");
       }
 
-      // Load catalog and students list in parallel
-      const [studentsRes, catalogRes] = await Promise.all([
-        getStudents().catch(() => ({ success: false, data: [] })),
-        getCatalogOptions().catch(() => ({ success: false, skills: [], certifications: [], branches: [], careers: [] }))
-      ]);
-
-      if (catalogRes?.success) {
-        setCatalog({
-          skills: (catalogRes.skills && catalogRes.skills.length > 0)
-            ? catalogRes.skills
-            : DEFAULT_SKILLS.map((s, idx) => ({ id: idx + 1, name: s, category: "Technical", demand_index: 80 })),
-          certifications: (catalogRes.certifications && catalogRes.certifications.length > 0)
-            ? catalogRes.certifications
-            : DEFAULT_CERTS.map((c, idx) => ({ id: idx + 1, name: c, issuing_org: "Certified" })),
-          branches: (catalogRes.branches && catalogRes.branches.length > 0)
-            ? catalogRes.branches
-            : DEFAULT_BRANCHES,
-          careers: (catalogRes.careers && catalogRes.careers.length > 0)
-            ? catalogRes.careers
-            : DEFAULT_CAREERS
-        });
-        setIsBackendConnected(true);
-      }
-
-      if (studentsRes?.success && studentsRes.data?.length > 0) {
-        setAllStudents(studentsRes.data);
-        const savedId =
-          localStorage.getItem("datavista_active_student_id") ||
-          localStorage.getItem("careercompass_active_student_id");
-        const found = savedId
-          ? studentsRes.data.find((s) => s.student_id === savedId)
-          : studentsRes.data[0];
-        setActiveStudent(found || studentsRes.data[0]);
-      }
+      // No valid session — stay unauthenticated
+      setIsAuthenticated(false);
     } catch (err) {
-      console.error("Failed to load students:", err);
+      console.error("Init error:", err);
       setIsBackendConnected(false);
       setError("Backend connection offline. Please launch the backend with 'python app.py' on port 5000.");
+      setIsAuthenticated(false);
     } finally {
       setLoading(false);
     }
@@ -218,7 +234,6 @@ export function StudentProvider({ children }) {
 
   // Refresh active student from backend
   const refreshActiveStudent = async () => {
-    await init();
     if (!activeStudent?.student_id) return;
     try {
       const res = await getStudentById(activeStudent.student_id);
@@ -296,56 +311,54 @@ export function StudentProvider({ children }) {
     }
   };
 
-  // Authentication Login
+  // Authentication Login — strictly validates against backend
   const login = async (identifier, password, role = "student") => {
     const q = (identifier || "").trim();
     if (!q) {
-      throw new Error(role === "admin" ? "Please enter Admin username." : "Please enter your Student ID or College Email.");
+      throw new Error(
+        role === "admin"
+          ? "Please enter your Admin username."
+          : "Please enter your Student ID or registered email."
+      );
+    }
+    if (!password || !password.trim()) {
+      throw new Error("Password is required.");
     }
 
     try {
       setLoading(true);
 
-      if (role === "admin") {
-        const res = await loginUser({ username: q, password, role: "admin" });
-        if (res.success) {
-          localStorage.removeItem("datavista_logged_out");
-          localStorage.setItem("datavista_user_role", "admin");
-          localStorage.setItem("datavista_auth_token", `dv_admin_token_${Date.now()}`);
-          setUserRole("admin");
-          setCurrentUser(res.user);
-          setIsAuthenticated(true);
-          return res.user;
-        } else {
-          throw new Error(res.error || "Admin authentication failed.");
-        }
+      // Validate credentials on backend — this is the single source of truth
+      const authRes = await loginUser({ username: q, password: password.trim(), role });
+
+      if (!authRes.success) {
+        throw new Error(authRes.error || "Authentication failed.");
       }
 
-      // Role is student
-      // Call auth backend first for validation
-      try {
-        const authRes = await loginUser({ username: q, password, role: "student" });
-        if (authRes.success) {
-          setUserRole("student");
-          setCurrentUser(authRes.user);
-          localStorage.setItem("datavista_user_role", "student");
-        }
-      } catch (authErr) {
-        console.warn("Direct auth check warning, continuing with profile match:", authErr);
+      // Backend returned a valid user + student profile
+      const user = authRes.user;
+      const studentData = authRes.student;
+
+      setCurrentUser(user);
+      setUserRole(user.role);
+
+      if (user.role === "student" && studentData) {
+        setActiveStudent(studentData);
+        localStorage.setItem("datavista_active_student_id", studentData.student_id);
+      } else if (user.role === "admin") {
+        // Load all students for admin view
+        const studentsRes = await getStudents().catch(() => ({ success: false, data: [] }));
+        if (studentsRes?.success) setAllStudents(studentsRes.data);
+        localStorage.setItem("datavista_active_student_id", user.username);
       }
 
-      // Attempt to switch / find student by ID, name, or email
-      const student = await switchStudentByIdOrName(q);
-      if (student) {
-        localStorage.removeItem("datavista_logged_out");
-        localStorage.setItem("datavista_user_role", "student");
-        localStorage.setItem("datavista_auth_token", `dv_token_${student.student_id}_${Date.now()}`);
-        setUserRole("student");
-        setIsAuthenticated(true);
-        return student;
-      } else {
-        throw new Error(`Account with ID or Email '${q}' not found.`);
-      }
+      localStorage.setItem("datavista_user_role", user.role);
+      localStorage.setItem("datavista_auth_token", `dv_${user.role}_${user.username}_${Date.now()}`);
+
+      setIsAuthenticated(true);
+      setIsBackendConnected(true);
+
+      return user.role === "student" ? studentData : user;
     } catch (err) {
       throw err;
     } finally {
@@ -353,21 +366,28 @@ export function StudentProvider({ children }) {
     }
   };
 
-  // Authentication Logout
+  // Authentication Logout — clears session but preserves account/profile data in DB
   const logout = () => {
-    // Log logout activity before clearing state
+    // Fire-and-forget logout activity log
     if (activeStudent?.student_id) {
-      fetch(`${window.location.origin.includes('localhost') ? 'http://127.0.0.1:5000' : (import.meta.env.VITE_API_BASE_URL || '')}/api/auth/logout`, {
+      const apiBase = import.meta.env.VITE_API_BASE_URL
+        ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, "")
+        : "";
+      fetch(`${apiBase}/api/auth/logout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ student_id: activeStudent.student_id })
       }).catch(() => {});
     }
-    localStorage.setItem("datavista_logged_out", "true");
+    // Clear all session identifiers
+    localStorage.removeItem("datavista_active_student_id");
     localStorage.removeItem("datavista_auth_token");
     localStorage.removeItem("datavista_user_role");
+    // Clear in-memory state
     setUserRole("student");
     setCurrentUser(null);
+    setActiveStudent(null);
+    setAllStudents([]);
     setIsAuthenticated(false);
   };
 

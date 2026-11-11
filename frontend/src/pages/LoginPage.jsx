@@ -5,7 +5,6 @@ import {
   Lock,
   ArrowRight,
   AlertCircle,
-  Sparkles,
   UserPlus,
   Eye,
   EyeOff,
@@ -43,21 +42,23 @@ export default function LoginPage({ onOpenRegister }) {
     if (e) e.preventDefault();
     const idToUse = identifier.trim();
     if (!idToUse) {
-      setErrorMsg("Please enter your Student ID or Registered Email.");
+      setErrorMsg("Please enter your Student ID or registered email.");
+      return;
+    }
+    if (!password.trim()) {
+      setErrorMsg("Password is required.");
       return;
     }
     try {
       setIsSubmitting(true);
       setErrorMsg("");
-      const pwToUse = password.trim() || "password123";
-      await login(idToUse, pwToUse, "student");
+      await login(idToUse, password.trim(), "student");
     } catch (err) {
-      setErrorMsg(err.message || "Failed to sign in. Please verify your credentials.");
+      setErrorMsg(err.message || "Failed to sign in. Please check your credentials.");
     } finally {
       setIsSubmitting(false);
     }
   };
-
   const handleQuickLogin = async (studentId) => {
     try {
       setIsSubmitting(true);
@@ -225,7 +226,7 @@ export default function LoginPage({ onOpenRegister }) {
                 <div style={{ marginBottom: "20px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
                     <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>Password</label>
-                    <span style={{ fontSize: "0.72rem", color: "#64748b" }}>Default: password123</span>
+                    <span style={{ fontSize: "0.72rem", color: "#64748b" }}>Set during registration</span>
                   </div>
                   <div style={{ position: "relative" }}>
                     <input
@@ -246,9 +247,9 @@ export default function LoginPage({ onOpenRegister }) {
                     </button>
                   </div>
                   <p style={{ fontSize: "0.73rem", color: "#94a3b8", marginTop: "5px" }}>
-                    First time? Use <strong>password123</strong> then go to <button type="button" onClick={() => setMode("set_password")}
+                    Use the password you set during registration. Forgot it? Go to <button type="button" onClick={() => setMode("set_password")}
                       style={{ background: "none", border: "none", color: "#7563A8", fontWeight: 700, cursor: "pointer", fontSize: "0.73rem", padding: 0 }}>
-                      Set Password</button> to change it.
+                      Set Password</button>.
                   </p>
                 </div>
 
@@ -264,33 +265,8 @@ export default function LoginPage({ onOpenRegister }) {
                 </button>
               </form>
 
-              {/* Quick demo logins */}
-              <div style={{ marginTop: "22px", paddingTop: "18px", borderTop: "1px solid #f1f5f9" }}>
-                <div style={{ fontSize: "0.74rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
-                  <Sparkles size={13} color="#7563A8" /> Quick Demo Access
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {[
-                    { id: "CS2024001", name: "Aarav Sharma", branch: "CSE" },
-                    { id: "CS2024002", name: "Priya Patel", branch: "AI & ML" },
-                    { id: "CS2024003", name: "Rohan Verma", branch: "Data Science" },
-                  ].map((s) => (
-                    <button key={s.id} type="button" onClick={() => handleQuickLogin(s.id)}
-                      style={{
-                        padding: "8px 12px", backgroundColor: "#ffffff",
-                        border: "1px solid #E6E1EF", borderRadius: "6px",
-                        fontSize: "0.8rem", color: "#29243A", cursor: "pointer",
-                        display: "flex", alignItems: "center", justifyContent: "space-between"
-                      }}>
-                      <span><strong>{s.name}</strong> ({s.id} • {s.branch})</span>
-                      <span style={{ color: "#7563A8", fontWeight: 600, fontSize: "0.75rem" }}>Login →</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Register */}
-              <div style={{ marginTop: "20px", textAlign: "center" }}>
+              {/* Register link */}
+              <div style={{ marginTop: "20px", textAlign: "center", paddingTop: "18px", borderTop: "1px solid #f1f5f9" }}>
                 <button type="button" onClick={onOpenRegister}
                   style={{ background: "none", border: "none", color: "#7563A8", fontWeight: 600, fontSize: "0.82rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "5px" }}>
                   <UserPlus size={14} /> New student? Register your profile here
@@ -307,7 +283,7 @@ export default function LoginPage({ onOpenRegister }) {
                   Set Your Password
                 </h2>
                 <p style={{ fontSize: "0.82rem", color: "#64748b", marginTop: "4px" }}>
-                  First-time login? Enter your Student ID and current password (<strong>password123</strong>), then set a new password.
+                  Enter your Student ID, your current password, then choose a new one.
                 </p>
               </div>
 
