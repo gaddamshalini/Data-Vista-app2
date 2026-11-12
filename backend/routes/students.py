@@ -4,19 +4,33 @@ from models import (
     Student, Skill, StudentSkill, Certification, StudentCertification,
     Project, StudentInternship, Career
 )
+from query_helpers import student_full_load
 
 students_bp = Blueprint("students", __name__, url_prefix="/api/students")
 
 @students_bp.route("", methods=["GET"])
 def list_students():
-    """List all students for quick selection."""
+    """List students — paginated to avoid loading thousands of rows at once."""
     db = SessionLocal()
     try:
-        students = db.query(Student).order_by(Student.id.desc()).all()
+        page = request.args.get("page", 1, type=int)
+        per_page = min(request.args.get("per_page", 50, type=int), 100)
+        offset = (page - 1) * per_page
+        students = (
+            db.query(Student)
+            .options(*student_full_load())
+            .order_by(Student.id.desc())
+            .limit(per_page)
+            .offset(offset)
+            .all()
+        )
+        total = db.query(Student).count()
         return jsonify({
             "success": True,
             "data": [s.to_dict() for s in students],
-            "total": len(students)
+            "total": total,
+            "page": page,
+            "per_page": per_page
         })
     finally:
         db.close()
@@ -70,10 +84,16 @@ def search_students():
 
     db = SessionLocal()
     try:
-        results = db.query(Student).filter(
-            (Student.student_id.ilike(f"%{query}%")) |
-            (Student.name.ilike(f"%{query}%"))
-        ).all()
+        results = (
+            db.query(Student)
+            .options(*student_full_load())
+            .filter(
+                (Student.student_id.ilike(f"{query}%")) |
+                (Student.name.ilike(f"%{query}%"))
+            )
+            .limit(20)
+            .all()
+        )
         return jsonify({
             "success": True,
             "data": [s.to_dict() for s in results]
@@ -81,22 +101,24 @@ def search_students():
     finally:
         db.close()
 
+
 @students_bp.route("/<student_id>", methods=["GET"])
 def get_student(student_id):
     """Retrieve full student profile by Student ID."""
     db = SessionLocal()
     try:
-        student = db.query(Student).filter(Student.student_id == student_id).first()
+        student = (
+            db.query(Student)
+            .options(*student_full_load())
+            .filter(Student.student_id == student_id)
+            .first()
+        )
         if not student:
             return jsonify({
                 "success": False,
                 "error": f"Student with ID '{student_id}' not found."
             }), 404
-
-        return jsonify({
-            "success": True,
-            "data": student.to_dict()
-        })
+        return jsonify({"success": True, "data": student.to_dict()})
     finally:
         db.close()
 

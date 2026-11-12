@@ -106,44 +106,57 @@ export function StudentProvider({ children }) {
       setLoading(true);
       setError(null);
 
-      await loadCatalog();
-
-      // Attempt to restore a previous session
       const savedStudentId = localStorage.getItem("datavista_active_student_id");
       const savedRole = localStorage.getItem("datavista_user_role") || "student";
 
-      if (savedStudentId) {
-        try {
-          const res = await restoreSession({ student_id: savedStudentId, role: savedRole });
-          if (res.success) {
-            setCurrentUser(res.user);
-            setUserRole(res.user.role);
-            if (res.student) {
-              setActiveStudent(res.student);
-            }
-            setIsAuthenticated(true);
+      // Run health check + catalog + session restore all in parallel
+      const [, , sessionRes] = await Promise.all([
+        // 1. Health check (silent)
+        checkHealth().catch(() => null),
+        // 2. Load catalog
+        getCatalogOptions().then((catalogRes) => {
+          if (catalogRes?.success) {
+            setCatalog({
+              skills: catalogRes.skills?.length > 0
+                ? catalogRes.skills
+                : DEFAULT_SKILLS.map((s, idx) => ({ id: idx + 1, name: s, category: "Technical", demand_index: 80 })),
+              certifications: catalogRes.certifications?.length > 0
+                ? catalogRes.certifications
+                : DEFAULT_CERTS.map((c, idx) => ({ id: idx + 1, name: c, issuing_org: "Certified" })),
+              branches: catalogRes.branches?.length > 0 ? catalogRes.branches : DEFAULT_BRANCHES,
+              careers: catalogRes.careers?.length > 0 ? catalogRes.careers : DEFAULT_CAREERS
+            });
             setIsBackendConnected(true);
-            // Also load all students for admin or switcher features
-            if (res.user.role === "admin") {
-              const studentsRes = await getStudents().catch(() => ({ success: false, data: [] }));
-              if (studentsRes?.success) setAllStudents(studentsRes.data);
-            }
-            return; // session restored, done
           }
-        } catch {
-          // Session restore failed — clear stale data and show login
+        }).catch(() => null),
+        // 3. Session restore (only if we have a saved student ID)
+        savedStudentId
+          ? restoreSession({ student_id: savedStudentId, role: savedRole }).catch(() => null)
+          : Promise.resolve(null)
+      ]);
+
+      // Handle session restore result
+      if (sessionRes?.success) {
+        setCurrentUser(sessionRes.user);
+        setUserRole(sessionRes.user.role);
+        if (sessionRes.student) setActiveStudent(sessionRes.student);
+        setIsAuthenticated(true);
+        setIsBackendConnected(true);
+        if (sessionRes.user.role === "admin") {
+          getStudents().then((r) => { if (r?.success) setAllStudents(r.data); }).catch(() => null);
+        }
+      } else {
+        // Clear stale data if session restore failed
+        if (savedStudentId) {
           localStorage.removeItem("datavista_active_student_id");
           localStorage.removeItem("datavista_user_role");
           localStorage.removeItem("datavista_auth_token");
         }
+        setIsAuthenticated(false);
       }
-
-      // No valid session — stay unauthenticated
-      setIsAuthenticated(false);
     } catch (err) {
       console.error("Init error:", err);
       setIsBackendConnected(false);
-      setError("Backend connection offline. Please launch the backend with 'python app.py' on port 5000.");
       setIsAuthenticated(false);
     } finally {
       setLoading(false);

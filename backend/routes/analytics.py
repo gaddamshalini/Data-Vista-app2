@@ -3,6 +3,7 @@ from sqlalchemy import func
 import numpy as np
 import pandas as pd
 from database import SessionLocal
+from query_helpers import jobs_with_skills
 from models import PlacementRecord, Job, JobSkill, Skill
 
 analytics_bp = Blueprint("analytics", __name__, url_prefix="/api/analytics")
@@ -184,7 +185,7 @@ def get_job_market_analytics():
     """
     db = SessionLocal()
     try:
-        jobs = db.query(Job).all()
+        jobs = db.query(Job).options(*jobs_with_skills()).all()
         if not jobs:
             return jsonify({"success": True, "data": {}})
 

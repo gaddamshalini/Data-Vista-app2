@@ -4,6 +4,7 @@ from flask import Blueprint, request, jsonify
 from database import SessionLocal
 from models import UserAccount, Student, AccountActivity
 from sqlalchemy import or_
+from query_helpers import student_full_load
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
@@ -169,7 +170,7 @@ def login():
         # Fetch the linked student profile
         student_data = None
         if user.role == "student" and user.student_ref:
-            student = db.query(Student).filter(
+            student = db.query(Student).options(*student_full_load()).filter(
                 Student.student_id == user.student_ref
             ).first()
             if student:
@@ -240,7 +241,7 @@ def me():
         if not user:
             return jsonify({"success": False, "error": "Session expired. Please log in again."}), 401
 
-        student = db.query(Student).filter(
+        student = db.query(Student).options(*student_full_load()).filter(
             Student.student_id == user.student_ref
         ).first()
         if not student:

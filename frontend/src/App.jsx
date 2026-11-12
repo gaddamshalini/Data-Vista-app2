@@ -1,34 +1,50 @@
-import React, { useState } from "react";
+import React, { useState, Suspense, lazy } from "react";
 import { StudentProvider, useStudent } from "./context/StudentContext";
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import StudentSwitcherModal from "./components/StudentSwitcherModal";
 import RegisterStudentModal from "./components/RegisterStudentModal";
-
-// Pages
 import LoginPage from "./pages/LoginPage";
-import DashboardPage from "./pages/DashboardPage";
-import ProfilePage from "./pages/ProfilePage";
-import ResumeBuilderPage from "./pages/ResumeBuilderPage";
-import PlacementAnalyticsPage from "./pages/PlacementAnalyticsPage";
-import JobMarketPage from "./pages/JobMarketPage";
-import SkillTrendsPage from "./pages/SkillTrendsPage";
-import CareerRecommendationPage from "./pages/CareerRecommendationPage";
-import SkillGapPage from "./pages/SkillGapPage";
-import InternshipAnalyticsPage from "./pages/InternshipAnalyticsPage";
-import InternshipMatchingPage from "./pages/InternshipMatchingPage";
-import FreeInternshipsPage from "./pages/FreeInternshipsPage";
-import StudentTaskPlannerPage from "./pages/StudentTaskPlannerPage";
-import CodingPracticeTrackerPage from "./pages/CodingPracticeTrackerPage";
-import MockInterviewPage from "./pages/MockInterviewPage";
-import CareerRoadmapPage from "./pages/CareerRoadmapPage";
-import SkillAssessmentPage from "./pages/SkillAssessmentPage";
-import AptitudeAssessmentPage from "./pages/AptitudeAssessmentPage";
-import LearningProgressPage from "./pages/LearningProgressPage";
-import PerformanceInsightsPage from "./pages/PerformanceInsightsPage";
-import AdminDashboardPage from "./pages/AdminDashboardPage";
-import PlacementReadinessPage from "./pages/PlacementReadinessPage";
-import ResumeMatcherPage from "./pages/ResumeMatcherPage";
+
+// Lazy-load all pages — only downloaded when first visited
+const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const ResumeBuilderPage = lazy(() => import("./pages/ResumeBuilderPage"));
+const PlacementAnalyticsPage = lazy(() => import("./pages/PlacementAnalyticsPage"));
+const JobMarketPage = lazy(() => import("./pages/JobMarketPage"));
+const SkillTrendsPage = lazy(() => import("./pages/SkillTrendsPage"));
+const CareerRecommendationPage = lazy(() => import("./pages/CareerRecommendationPage"));
+const SkillGapPage = lazy(() => import("./pages/SkillGapPage"));
+const InternshipAnalyticsPage = lazy(() => import("./pages/InternshipAnalyticsPage"));
+const InternshipMatchingPage = lazy(() => import("./pages/InternshipMatchingPage"));
+const FreeInternshipsPage = lazy(() => import("./pages/FreeInternshipsPage"));
+const StudentTaskPlannerPage = lazy(() => import("./pages/StudentTaskPlannerPage"));
+const CodingPracticeTrackerPage = lazy(() => import("./pages/CodingPracticeTrackerPage"));
+const MockInterviewPage = lazy(() => import("./pages/MockInterviewPage"));
+const CareerRoadmapPage = lazy(() => import("./pages/CareerRoadmapPage"));
+const SkillAssessmentPage = lazy(() => import("./pages/SkillAssessmentPage"));
+const AptitudeAssessmentPage = lazy(() => import("./pages/AptitudeAssessmentPage"));
+const LearningProgressPage = lazy(() => import("./pages/LearningProgressPage"));
+const PerformanceInsightsPage = lazy(() => import("./pages/PerformanceInsightsPage"));
+const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
+const PlacementReadinessPage = lazy(() => import("./pages/PlacementReadinessPage"));
+const ResumeMatcherPage = lazy(() => import("./pages/ResumeMatcherPage"));
+
+// Simple fallback shown while a page chunk is loading
+const PageLoader = () => (
+  <div style={{
+    display: "flex", alignItems: "center", justifyContent: "center",
+    height: "60vh", flexDirection: "column", gap: "12px", color: "#7563A8"
+  }}>
+    <div style={{
+      width: "36px", height: "36px", border: "3px solid #E6E1EF",
+      borderTop: "3px solid #7563A8", borderRadius: "50%",
+      animation: "spin 0.8s linear infinite"
+    }} />
+    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    <span style={{ fontSize: "0.85rem", color: "#64748b" }}>Loading...</span>
+  </div>
+);
 
 function MainAppContent() {
   const { isAuthenticated } = useStudent();
@@ -141,7 +157,9 @@ function MainAppContent() {
         />
 
         <main className="content-body">
-          {renderActivePage()}
+          <Suspense fallback={<PageLoader />}>
+            {renderActivePage()}
+          </Suspense>
         </main>
       </div>
 

@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from database import SessionLocal
 from models import Student, Career, CareerSkill, Skill
+from query_helpers import student_full_load, career_with_skills
 
 careers_bp = Blueprint("careers", __name__, url_prefix="/api/careers")
 
@@ -9,7 +10,7 @@ def list_careers():
     """List all available career pathways."""
     db = SessionLocal()
     try:
-        careers = db.query(Career).all()
+        careers = db.query(Career).options(*career_with_skills()).all()
         return jsonify({
             "success": True,
             "data": [c.to_dict() for c in careers]
@@ -36,11 +37,11 @@ def get_career_recommendations():
 
     db = SessionLocal()
     try:
-        student = db.query(Student).filter(Student.student_id == student_id).first()
+        student = db.query(Student).options(*student_full_load()).filter(Student.student_id == student_id).first()
         if not student:
             return jsonify({"success": False, "error": f"Student '{student_id}' not found"}), 404
 
-        careers = db.query(Career).all()
+        careers = db.query(Career).options(*career_with_skills()).all()
         student_skills = {s.skill.name.lower() for s in student.skills if s.skill}
         student_projects = student.projects
         student_certs = [c.certification.name.lower() for c in student.certifications if c.certification]
@@ -159,7 +160,7 @@ def get_skill_gap():
 
     db = SessionLocal()
     try:
-        student = db.query(Student).filter(Student.student_id == student_id).first()
+        student = db.query(Student).options(*student_full_load()).filter(Student.student_id == student_id).first()
         if not student:
             return jsonify({"success": False, "error": f"Student '{student_id}' not found"}), 404
 
@@ -168,20 +169,20 @@ def get_skill_gap():
         # 1. If explicit role query provided, search in DB first
         if role_query:
             # Exact or substring match in DB
-            career = db.query(Career).filter(Career.title.ilike(role_query)).first()
+            career = db.query(Career).options(*career_with_skills()).filter(Career.title.ilike(role_query)).first()
             if not career:
-                career = db.query(Career).filter(Career.title.ilike(f"%{role_query}%")).first()
+                career = db.query(Career).options(*career_with_skills()).filter(Career.title.ilike(f"%{role_query}%")).first()
 
         # 2. If career_id provided
         if not career and career_id:
-            career = db.query(Career).filter(Career.id == career_id).first()
+            career = db.query(Career).options(*career_with_skills()).filter(Career.id == career_id).first()
 
         # 3. Default to student's preferred career or first career
         if not career and not role_query:
             if student.preferred_career:
-                career = db.query(Career).filter(Career.title.ilike(student.preferred_career)).first()
+                career = db.query(Career).options(*career_with_skills()).filter(Career.title.ilike(student.preferred_career)).first()
             if not career:
-                career = db.query(Career).first()
+                career = db.query(Career).options(*career_with_skills()).first()
 
         student_skills = {s.skill.name.lower(): s.skill for s in student.skills if s.skill}
 
