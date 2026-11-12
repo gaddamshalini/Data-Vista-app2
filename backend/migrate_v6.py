@@ -16,15 +16,23 @@ def run():
     # ── 1. Create account_activities table ──────────────────────────────────
     if "account_activities" not in existing_tables:
         print("[+] Creating account_activities table...")
-        conn.execute(text("""
+        # Use SERIAL for PostgreSQL, AUTOINCREMENT for SQLite
+        from config import DATABASE_URL
+        if "sqlite" in DATABASE_URL:
+            id_col = "id INTEGER PRIMARY KEY AUTOINCREMENT"
+            ts_col = "created_at DATETIME DEFAULT CURRENT_TIMESTAMP"
+        else:
+            id_col = "id SERIAL PRIMARY KEY"
+            ts_col = "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        conn.execute(text(f"""
             CREATE TABLE account_activities (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                {id_col},
                 student_id VARCHAR(50) NOT NULL,
                 activity_type VARCHAR(50) NOT NULL,
                 description VARCHAR(255),
                 ip_address VARCHAR(45),
                 user_agent VARCHAR(255),
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                {ts_col}
             )
         """))
         conn.execute(text("CREATE INDEX ix_account_activities_student_id ON account_activities (student_id)"))
